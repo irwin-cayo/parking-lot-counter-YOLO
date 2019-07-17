@@ -1,14 +1,15 @@
 # Read and write back out to video:
-# python vehicle_counter_yolo.py --input videos/PKEW.avi --output output/PKEWoutput_01.avi --yolo yolo-coco
-#
+# python vehicle_counter_yolo.py --input videos/name_of_input_video.avi --output output/name_of_output.avi --yolo yolo-coco
+
 # To read from webcam and write back out to disk:
 # python vehicle_counter_yolo.py --output/webcam_output.avi --yolo yolo-coco
 
-# Import the necessary packages
+# import the necessary packages
 from pyimagesearch.centroidtracker import CentroidTracker
 from pyimagesearch.trackableobject import TrackableObject
 from imutils.video import VideoStream
 from imutils.video import FPS
+from datetime import datetime
 import numpy as np
 import argparse
 import imutils
@@ -17,7 +18,7 @@ import dlib
 import cv2
 import os
 
-# Construct the argument parse and parse the arguments entered in the command line
+# construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--input", type=str,
 	help="path to optional input video file")
@@ -25,72 +26,78 @@ ap.add_argument("-o", "--output", type=str,
 	help="path to optional output video file")
 ap.add_argument("-y", "--yolo", required=True,
 	help="base path to YOLO directory")
-
-# Each detection will have a confidence level. We will filter out weak detections.
-# Low confidence detections will be ignored. 
-ap.add_argument("-c", "--confidence", type=float, default=0.75,
+ap.add_argument("-c", "--confidence", type=float, default=0.6,
 	help="minimum probability to filter weak detections")
 ap.add_argument("-t", "--threshold", type=float, default=0.3,
-	help="threshold when applying non-maxima suppression")
-# Object detection will only be performed every nth frame
+	help="threshold when applyong non-maxima suppression")
 ap.add_argument("-s", "--skip-frames", type=int, default=15,
 	help="# of skip frames between detections")
 args = vars(ap.parse_args())
 
 
-# This script uses Yolo-v3 pre-trained model by Darknet and was 
-# Trained on the COCO (common objects in context) dataset
-# The COCO dataset contains 80 labels. Yolo-v3 object detector can classify these 80 different objects.
+# load the COCO class labels our YOLO model was trained on
 labelsPath = os.path.sep.join([args["yolo"], "coco.names"])
 LABELS = open(labelsPath).read().strip().split("\n")
 
-# Create pseudo random list of random colors 
-# We will use these for the 80 different labels/objects. But really we will only use 3 of these colors.
+# initialize a list of colors to represent each possible class label
 np.random.seed(42)
 COLORS = np.random.randint(0, 255, size=(len(LABELS), 3),
 	dtype="uint8")
 
-# We do not need to train our own model for vehicle detection since there are already many
-# pre-trained models that work for general vehicle detection.
-# Since the model we are using is pre-trained we only need the weights and configuration
-# located in the 'yolo' folder in the directory.
-
-# Derive the paths to the YOLO weights and model configuration
+# derive the paths to the YOLO weights and model configuration
 weightsPath = os.path.sep.join([args["yolo"], "yolov3.weights"])
 configPath = os.path.sep.join([args["yolo"], "yolov3.cfg"])
 
-# Load Yolo-v3 and determine only the *output* layer names that we need from YOLO
+# load our YOLO object detector trained on COCO dataset (80 classes)
+# and determine only the *output* layer names that we need from YOLO
 print("[INFO] loading YOLO from disk...")
 net = cv2.dnn.readNetFromDarknet(configPath, weightsPath)
 ln = net.getLayerNames()
 ln = [ln[i[0] - 1] for i in net.getUnconnectedOutLayers()]
 
-# If an input video path was not supplied, grab a reference to the webcam!
+# if a video path was not supplied, grab a reference to the webcam
 if not args.get("input", False):
 	print("[INFO] starting video stream...")
 	vs = VideoStream(src=0).start()
 	time.sleep(2.0)
 
-# Otherwise, grab a reference to the video file that will be used
+# otherwise, grab a reference to the video file
 else:
 	print("[INFO] opening video file...")
 	vs = cv2.VideoCapture(args["input"])
 
-# Initialize the video writer for the output video
+# initialize the video writer
 writer = None
 
-# initialize frame dimensions
+#initialize the file writer
+file_object = open("cv_detection_results_east.txt", "a+")
+
+# initialize the frame dimensions (we'll set them as soon as we read
+# the first frame from the video)
 W = None
 H = None
 
-# Instantiate our centroid tracker, then initialize a list to store each of 
-# our dlib correlation trackers, followed by a dictionary to map TrackableObject
-ct = CentroidTracker(maxDisappeared=25, maxDistance=150) 
+# instantiate our centroid tracker, then initialize a list to store
+# each of our dlib correlation trackers, followed by a dictionary to
+# map each unique object ID to a TrackableObject
+ct = CentroidTracker(maxDisappeared=25, maxDistance=150) #was 25 and 150
 trackers = []
 trackableObjects = {}
 
-# initialize the total number of frames processed 
-# and total vehicles who have entered and exited
+local_time = 1554215400.481
+time = datetime.fromtimestamp(local_time)
+print('start time:', time)
+try:
+	prop = cv2.cv.CV_CAP_PROP_FRAME_COUNT if imutils.is_cv2() \
+		else cv2.CAP_PROP_FRAME_COUNT
+	total = int(vs.get(prop))
+	print("[INFO] {} total frames in video".format(total))
+except:
+	pass
+
+
+# initialize the total number of frames processed thus far, along
+# with the total number of objects that have moved either up or down
 totalFrames = 0
 totalDown = 0
 totalUp = 0
@@ -100,19 +107,23 @@ temp_out = 0
 # start the frames per second throughput estimator
 fps = FPS().start()
 
-# loop over each frame from the video file or stream
+
+# loop over frames from the video stream
 while True:
 	# grab the next frame and handle if we are reading from either
 	# VideoCapture or VideoStream
 	frame = vs.read()
 	frame = frame[1] if args.get("input", False) else frame
 
-	# if we are reading a video and didn't grab a frame then we reached the end of video
+	# if we are viewing a video and we did not grab a frame then we
+	# have reached the end of the video
 	if args["input"] is not None and frame is None:
 		break
 
 	# resize the frame to have a maximum width of 1080 pixels
-	# yolo will use BGR frame, but dlib requires RGB frame so create copy of frame in RGB
+	#(change to dimensions as needed)
+	#, then convert
+	# the frame from BGR to RGB for dlib
 	frame = imutils.resize(frame, width = 1080)
 	rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -120,27 +131,31 @@ while True:
 	if W is None or H is None:
 		(H, W) = frame.shape[:2]
 
-	# initialize writer if we are going to be writing to disk
+	# if we are supposed to be writing a video to disk, initialize
+	# the writer
 	if args["output"] is not None and writer is None:
 		fourcc = cv2.VideoWriter_fourcc(*"XVID")
 		writer = cv2.VideoWriter(args["output"], fourcc, 30,
 			(W,H), True)
 
-	# initialize the current status (waiting, detecting, tracking) 
-	# along with our list of bounding box rectangles returned by either 
-	# (1) our object detector or
+	# initialize the current status along with our list of bounding
+	# box rectangles returned by either (1) our object detector or
 	# (2) the correlation trackers
-	
 	status = "Waiting"
 	rects = []
 
-	# Check to see if we should use object detection to detect new objects
-	# or if we should track our already detected objects (if any)
-	# If condition is met we use object detection
+	# check to see if we should run a more computationally expensive
+	# object detection method to aid our tracker
 	if totalFrames % args["skip_frames"] == 0:
 		# set the status and initialize our new set of object trackers
 		status = "Detecting"
 		trackers = []
+
+		# convert the frame to a blob and pass the blob through the
+		# network and obtain the detections
+		# blob = cv2.dnn.blobFromImage(frame, 0.007843, (W, H), 127.5)
+		# net.setInput(blob)
+		# detections = net.forward()
 
 		# construct a blob from the input frame and then perform a forward
 		# pass of the YOLO object detector, giving us our bounding boxes
@@ -152,7 +167,8 @@ while True:
 		layerOutputs = net.forward(ln)
 		end = time.time()
 
-		# initialize list of detected bounding boxes, confidences, and classID's
+		# initialize our lists of detected bounding boxes, confidences,
+		# and class IDs, respectively
 		boxes = []
 		confidences = []
 		classIDs = []
@@ -168,10 +184,10 @@ while True:
 				classID = np.argmax(scores)
 				confidence = scores[classID]
 				
-				# filter out weak predictions
+				# filter out weak predictions by ensuring the detected
+				# probability is greater than the minimum probability
 				if confidence > args["confidence"]:
 					if LABELS[classID] in ["car","truck", "motorbike"]:
-
 						# scale the bounding box coordinates back relative to
 						# the size of the image, keeping in mind that YOLO
 						# actually returns the center (x, y)-coordinates of
@@ -193,7 +209,8 @@ while True:
 					else:
 						continue
 
-		# apply non-maxima suppression to suppress weak, overlapping bounding boxes
+		# apply non-maxima suppression to suppress weak, overlapping
+		# bounding boxes
 		idxs = cv2.dnn.NMSBoxes(boxes, confidences, args["confidence"],
 			args["threshold"])
 
@@ -205,6 +222,14 @@ while True:
 				(x, y) = (boxes[i][0], boxes[i][1])
 				(w, h) = (boxes[i][2], boxes[i][3])
 
+				# draw a bounding box rectangle and label on the frame
+				#THIS WILL probably give you seizures if sensitive to flashing lights
+				# color = [int(c) for c in COLORS[classIDs[i]]]
+				# cv2.rectangle(frame, (x, y), (x + w, y + h), color, 12)
+				# text = "{}: {:.4f}".format(LABELS[classIDs[i]],
+				# 	confidences[i])
+				# cv2.putText(frame, text, (x, y - 5),
+				# 	cv2.FONT_HERSHEY_SIMPLEX, 2, color, 9)
 				# construct a dlib rectangle object from the bounding
 				# box coordinates and then start the dlib correlation
 				# tracker
@@ -215,9 +240,9 @@ while True:
 				# add the tracker to our list of trackers so we can
 				# utilize it during skip frames
 				trackers.append(tracker)
-
-	# otherwise, we should utilize our object tracking rather than
-	# object detecting to obtain a higher frame processing throughput
+					
+	# otherwise, we should utilize our object *trackers* rather than
+	# object *detectors* to obtain a higher frame processing throughput
 	else:
 		# loop over the trackers
 		for tracker in trackers:
@@ -238,30 +263,26 @@ while True:
 			# add the bounding box coordinates to the rectangles list
 			rects.append((startX, startY, endX, endY))
 
-	# Initialize position points on the frame which we will use for drawing lines on the frame
-	# Diag lines (y) point values
-	diag_start_y = (H // 2) - 188 
-	diag_end_y =  (H //2 ) - 188
-	# Diag Lines (x) point values
-	diag_start_x = 349
-	diag_end_x = (W // 2) + 60
-	# Vertical Line entrance point values
-	horz1 = (H // 2) + 59
-	exit_x1 = (W // 2) + 115
-	exit_x2 = exit_x1 + 280
+	# draw a horizontal line in the center of the frame -- once an
+	# object crosses this line we will determine whether they were
+	# moving 'up' or 'down'
+	horz1 = (H // 2) + 45
+	mid_horz = horz1 - 30
+	vert1_ent = (W // 2) - 59
+	vert2_ent = vert1_ent - 230
+	vert1_ext = (W // 2) + 250
+	vert2_ext = (W // 2) + 50
 	top = 270
-	
-	##########DRAWN LINES############
-	#Horizontal line
-	cv2.line(frame, (diag_start_x, diag_start_y ), (diag_end_x, diag_end_y), (0, 255, 0), 1) #entrance
-    
-	#Vertical lines for entrance
-	cv2.line(frame, (diag_end_x, diag_end_y), (diag_end_x, 50), (0, 255, 0), 1) #right line
-	cv2.line(frame, (diag_start_x, diag_start_y), (diag_start_x, 100), (0, 255, 0), 1) #left line
-    
-	#Horizontal line for exit
-	cv2.line(frame, (exit_x1, diag_end_y ), (exit_x2, diag_end_y), (0, 0, 255), 1) #exit
-
+	#Horizontal lines
+	cv2.line(frame, (vert2_ent, horz1 ), (vert1_ent, horz1), (0, 255, 0), 1) #entrance
+	cv2.line(frame, (vert2_ext, horz1 ), (vert1_ext, horz1), (0, 0, 255), 1) #exit
+	cv2.line(frame, (vert1_ent, mid_horz ), (vert2_ext, mid_horz), (0, 255, 255), 1) #edge case
+        #Vertical lines for entrance
+	cv2.line(frame, (vert1_ent, top), (vert1_ent, horz1), (0, 255, 0), 1) #right line
+	cv2.line(frame, (vert2_ent, top), (vert2_ent, horz1), (0, 255, 0), 1) #left line
+	#vertical lines for exit
+	cv2.line(frame, (vert1_ext, top), (vert1_ext, horz1), (0, 0, 255), 1) #left line
+	cv2.line(frame, (vert2_ext, top), (vert2_ext, horz1), (0, 0, 255), 1) #right line
 	# use the centroid tracker to associate the (1) old object
 	# centroids with (2) the newly computed object centroids
 	objects = ct.update(rects)
@@ -283,41 +304,49 @@ while True:
 			# centroid and the mean of *previous* centroids will tell
 			# us in which direction the object is moving (negative for
 			# 'up' and positive for 'down')
-			if not to.entered and not to.already_in_lot:
-					if (centroid[1] < diag_start_y and centroid[0] < diag_end_x) and centroid[0] > diag_start_x:
-							to.entered = True
-					elif (centroid[1] > diag_end_y or centroid[0] < diag_start_x): 
-							to.already_in_lot = True
-			y = [c[1] for c in to.centroids]
-			direction = centroid[1] - np.mean(y)
-			to.centroids.append(centroid)
+                        if not to.entered and not to.already_in_lot:
+                                if ((centroid[1] > horz1 or (centroid[0] > vert1_ext or centroid[0] < vert2_ent)) or ((centroid[0] < vert2_ext and centroid[0] > vert1_ent) and centroid[1] > mid_horz )): #if below or to the right of far right red
+                                        to.already_in_lot = True
+                                elif centroid[1] < horz1 and (centroid[0] < vert1_ent and centroid[0] > vert2_ent):
+                                        to.entered = True
+                        #y = [c[1] for c in to.centroids] 
+                        #direction = centroid[1] - np.mean(y)
+                        #to.centroids.append(centroid)
 
-			# check to see if the object has been counted yet or not
-			# and location of vehicle when detected
-			if not to.counted:
-					# if the direction is negative (indicating the object
-					# is moving up) AND the centroid is in the exit zone and was 
-					# detected outside the exit zone first, then count it
-					if to.already_in_lot and direction < 0:
-							if ((centroid[1] < diag_end_y and centroid[0] < exit_x2)and centroid[0] > exit_x1):
-									if (totalFrames - temp_in > 30):
-											temp_in = totalFrames
-											totalUp += 1
-											to.counted = True
-									else:
-											to.counted = True
-					# if the direction is positive (indicating the object
-					# is moving down) AND the centroid is below the
-					# center line, and was detected at entrance, count the object
-					elif to.entered:
-							if (centroid[0] < diag_start_x or centroid[1] > diag_start_y) and (direction > 0):
-									if (totalFrames - temp_out > 30):
-											temp_out = totalFrames
-											totalDown += 1
-											to.counted = True
-									else:
-											to.counted = True
-		
+			# check to see if the object has been counted or not
+			#and location of vehicle when detected
+                        if not to.counted:
+				# if the direction is negative (indicating the object
+				# is moving up) AND the centroid is above the center
+				# line AND to the left of the red vettical line,
+				# AND the vehicle was already in the lot, count the object
+                                if to.already_in_lot: #directiom < 0 and underneath
+                                        if (centroid[1] < horz1 and (centroid[0] > vert2_ext and centroid[0] < vert1_ext)):
+                                                if (totalFrames - temp_in > 30):
+                                                        temp_in = totalFrames
+                                                        time = datetime.fromtimestamp(local_time)
+                                                        print("time: {} | status: -1".format(time))
+                                                        totalUp += 1
+                                                        file_object.write("%s\tEast-Exit\t-1\n" % time)
+                                                        to.counted = True
+                                                else:
+                                                        to.counted = True
+                                # if the direction is positive (indicating the object
+				# is moving down) AND the centroid is below the
+				# center line, and was detected at entrance, count the object
+                                elif to.entered:
+                                        if ((centroid[0] > vert1_ent or centroid[0] < vert2_ent)
+                                       or centroid[1] > horz1): #and (direction > 0):
+                                                if (totalFrames - temp_out > 30):
+                                                        time = datetime.fromtimestamp(local_time)
+                                                        print("time: {} | status: 1".format(time))
+                                                        file_object.write("%s\tEast-Entrance\t1\n" % time)
+                                                        temp_out = totalFrames
+                                                        totalDown += 1
+                                                        to.counted = True
+                                                else:
+                                                        to.counted = True
+
 		# store the trackable object in our dictionary
 		trackableObjects[objectID] = to
 
@@ -332,7 +361,7 @@ while True:
 		#cv2.rectangle(frame, (startX, startY), (endX, endY), (0, 255, 255), 5)
                 
 
-    # construct a tuple of information we will be displaying on the
+        # construct a tuple of information we will be displaying on the
 	# frame
 	info = [
 		("Exit", totalUp),
@@ -361,12 +390,16 @@ while True:
 	# increment the total number of frames processed thus far and
 	# then update the FPS counter
 	totalFrames += 1
+	local_time = 1554215400.481 + ((1000.0 * totalFrames) / 30000)
 	fps.update()
 
 # stop the timer and display FPS information
 fps.stop()
 print("[INFO] elapsed time: {:.2f}".format(fps.elapsed()))
 print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
+
+#close writer
+file_object.close()
 
 # check to see if we need to release the video writer pointer
 if writer is not None:
