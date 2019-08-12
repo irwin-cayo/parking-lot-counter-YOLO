@@ -1,4 +1,4 @@
-# parking-lot-count-YOLO-E1
+# parking-lot-count-YOLO
 
 Vehicle detection and tracking using YOLO object detector and dlib correlation tracking for the east entrance of PK-E at CSUSB.
 Tested on Opencv-Python 4.x.x
@@ -59,7 +59,7 @@ Run the program on a segment of video from the UPD. Use the East entrance for th
 In your command line type:
 
 ```
-python vehicle_counter_yolo.py --input videos/name_of_input_video.avi --output output/insert_name_of_output.avi --yolo yolo-coco
+python vehicle_counter_yolo_east.py --input videos/name_of_input_video.avi --output output/insert_name_of_output.avi --yolo yolo-coco
 ```
 
 In the output folder you should now see a new video with annotations. Verify that the contents are correct.
