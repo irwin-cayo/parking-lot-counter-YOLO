@@ -1,11 +1,17 @@
-# parking-lot-count-YOLO
+# parking-lot-counter-YOLO
 
 Vehicle detection and tracking using YOLO object detector and dlib correlation tracking for the east entrance of PK-E at CSUSB.
 Tested on Opencv-Python 4.x.x
 
 ## Getting Started
 
-It is best practice to create a virtual environment to house the dependencies for this project. You may use an environment creator of your choice such as virtualenv, pipenv or venv. If you do not have any of these simply install one via command line. Note: You will need to have python installed on your machine.
+Make sure you have Git installed on your machine. Naviagte to the desired project folder and clone the repository or download the zip folder.
+
+```
+git clone https://github.com/irwin-cayo/parking-lot-counter-YOLO.git
+```
+
+Now that you have the repository on your local machine, it is best practice to create a virtual environment to house the dependencies for this project. You may use an environment creator of your choice such as virtualenv, pipenv or venv. If you do not have any of these simply install one via command line. Note: You will need to have python installed on your machine.
 
 ```
 pip install virtualenv
@@ -59,7 +65,7 @@ Run the program on a segment of video from the UPD. Use the East entrance for th
 In your command line type:
 
 ```
-python vehicle_counter_yolo_east.py --input videos/name_of_input_video.avi --output output/insert_name_of_output.avi --yolo yolo-coco
+python vehicle_counter_yolo_east.py --input videos/exit_east.avi --output output/insert_name_of_output.avi --yolo yolo-coco
 ```
 
 In the output folder you should now see a new video with annotations. Verify that the contents are correct.
