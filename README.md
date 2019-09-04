@@ -1,6 +1,6 @@
 # parking-lot-counter-YOLO
 
-Vehicle detection and tracking using YOLO object detector and dlib correlation tracking for the east entrance of PK-E at CSUSB.
+Vehicle detection and tracking using YOLO object detector and dlib correlation tracking for the east entrance of parking structure PK-E at CSUSB.
 Tested on Opencv-Python 4.x.x
 
 ## Getting Started
@@ -11,7 +11,7 @@ Make sure you have Git installed on your machine. Naviagte to the desired projec
 git clone https://github.com/irwin-cayo/parking-lot-counter-YOLO.git
 ```
 
-Now that you have the repository on your local machine, it is best practice to create a virtual environment to house the dependencies for this project. You may use an environment creator of your choice such as virtualenv, pipenv or venv. If you do not have any of these simply install one via command line. Note: You will need to have python installed on your machine.
+Now that you have the repository on your local machine, it is best practice to create a virtual environment to house the dependencies for this project. You may use an environment creator of your choice such as virtualenv, pipenv or venv. If you do not have any of these simply install one via command line. Note: You will need to have python3 installed on your machine.
 
 ```
 pip install virtualenv
@@ -19,7 +19,7 @@ pip install virtualenv
 After you have installed virtualenv, create a python virtual environment at the preffered project location:
 
 ```
-virtualenv count
+virtualenv count_project
 ```
 To activate the virtual environment:
 
@@ -41,7 +41,7 @@ OpenCV-Python; dlib; numpy; etc;
 ```
 
 ### Installing
-If you do not have these packages installed you can easily pip install them. They are listed in the requirements.txt file. To install all dependencies simply type into the command line of your python virtual environment:
+If you do not have these packages installed you can easily pip install them. They are listed in the requirements.txt file. To install all dependencies simply type into the command line of your python virtual environment. Note: You may run into some problems installing dlib. You must have a c++ compiler installed on your machine. Having visual studio installed will work as well.
 
 ```
 pip install requirements.txt
