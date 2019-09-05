@@ -84,18 +84,6 @@ ct = CentroidTracker(maxDisappeared=25, maxDistance=150) #was 25 and 150
 trackers = []
 trackableObjects = {}
 
-local_time = 1554215400.481
-time = datetime.fromtimestamp(local_time)
-print('start time:', time)
-try:
-	prop = cv2.cv.CV_CAP_PROP_FRAME_COUNT if imutils.is_cv2() \
-		else cv2.CAP_PROP_FRAME_COUNT
-	total = int(vs.get(prop))
-	print("[INFO] {} total frames in video".format(total))
-except:
-	pass
-
-
 # initialize the total number of frames processed thus far, along
 # with the total number of objects that have moved either up or down
 totalFrames = 0
@@ -153,10 +141,6 @@ while True:
 
 		# convert the frame to a blob and pass the blob through the
 		# network and obtain the detections
-		# blob = cv2.dnn.blobFromImage(frame, 0.007843, (W, H), 127.5)
-		# net.setInput(blob)
-		# detections = net.forward()
-
 		# construct a blob from the input frame and then perform a forward
 		# pass of the YOLO object detector, giving us our bounding boxes
 		# and associated probabilities
@@ -223,7 +207,6 @@ while True:
 				(w, h) = (boxes[i][2], boxes[i][3])
 
 				# draw a bounding box rectangle and label on the frame
-				#THIS WILL probably give you seizures if sensitive to flashing lights
 				# color = [int(c) for c in COLORS[classIDs[i]]]
 				# cv2.rectangle(frame, (x, y), (x + w, y + h), color, 12)
 				# text = "{}: {:.4f}".format(LABELS[classIDs[i]],
