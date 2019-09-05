@@ -83,6 +83,10 @@ H = None
 ct = CentroidTracker(maxDisappeared=25, maxDistance=150) #was 25 and 150
 trackers = []
 trackableObjects = {}
+#Set the time in epoch
+local_time = 1564718220
+time = datetime.fromtimestamp(local_time)
+print('start time:', time)
 
 # initialize the total number of frames processed thus far, along
 # with the total number of objects that have moved either up or down
