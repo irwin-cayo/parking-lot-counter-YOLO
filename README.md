@@ -41,7 +41,7 @@ OpenCV-Python; dlib; numpy; etc;
 ```
 
 ### Installing
-If you do not have these packages installed you can easily pip install them. They are listed in the requirements.txt file. To install all dependencies simply type into the command line of your python virtual environment. Note: You may run into some problems installing dlib. You must have a c++ compiler installed on your machine. Having visual studio installed will work as well.
+If you do not have these packages installed you can easily pip install them. They are listed in the requirements.txt file. To install all dependencies simply type into the command line of your python virtual environment. Note: Dlib must be compiled. This can be done with pip install but you must have a c++ compiler installed on your machine. Having visual studio installed on your machine will work as well.
 
 ```
 pip install requirements.txt
